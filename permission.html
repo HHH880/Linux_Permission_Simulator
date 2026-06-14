@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linux Permission Simulator</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg-primary: #ffffff; --bg-secondary: #f8f9fa; --bg-tertiary: #f1f3f5;
+    --bg-info: #e6f1fb; --text-primary: #1a1a2e; --text-secondary: #5f6368;
+    --text-tertiary: #9aa0a6; --text-info: #185fa5; --border-light: rgba(0,0,0,0.1);
+    --border-med: rgba(0,0,0,0.18); --border-info: #378add;
+    --radius-md: 8px; --radius-lg: 12px;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'Courier New', Courier, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-primary: #1e1e2e; --bg-secondary: #2a2a3e; --bg-tertiary: #313145;
+      --bg-info: #0c2040; --text-primary: #e2e8f0; --text-secondary: #94a3b8;
+      --text-tertiary: #64748b; --text-info: #60a5fa; --border-light: rgba(255,255,255,0.08);
+      --border-med: rgba(255,255,255,0.15); --border-info: #3b82f6;
+    }
+  }
+  body { font-family: var(--font-sans); background: var(--bg-tertiary); color: var(--text-primary); min-height: 100vh; padding: 1.5rem 1rem 3rem; }
+  .page-header { max-width: 760px; margin: 0 auto 1.5rem; }
+  .page-header h1 { font-size: 22px; font-weight: 600; display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .page-header p { font-size: 14px; color: var(--text-secondary); }
+  .badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; background: var(--bg-info); color: var(--text-info); border: 0.5px solid var(--border-info); }
+  .container { max-width: 760px; margin: 0 auto; }
+  .card { background: var(--bg-primary); border: 0.5px solid var(--border-light); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 1rem; }
+  .section-title { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .75rem; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 1rem; background: var(--bg-secondary); padding: 3px; border-radius: var(--radius-md); border: 0.5px solid var(--border-light); }
+  .tab { flex: 1; padding: 7px 4px; font-size: 13px; text-align: center; border-radius: 6px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); transition: all .15s; font-family: var(--font-sans); }
+  .tab.active { background: var(--bg-primary); color: var(--text-primary); font-weight: 500; border: 0.5px solid var(--border-light); }
+  .perm-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .perm-group { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 10px; border: 0.5px solid var(--border-light); }
+  .perm-group-label { font-size: 12px; font-weight: 600; text-align: center; margin-bottom: 8px; padding: 3px 0; border-radius: 4px; }
+  .label-owner { background: #EAF3DE; color: #27500A; }
+  .label-group  { background: #E6F1FB; color: #0C447C; }
+  .label-others { background: #FAEEDA; color: #633806; }
+  .perm-row { display: flex; flex-direction: column; gap: 5px; }
+  .perm-check { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; cursor: pointer; transition: background .12s; }
+  .perm-check:hover { background: var(--bg-tertiary); }
+  .perm-check input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: #639922; }
+  .perm-letter { font-family: var(--font-mono); font-size: 14px; font-weight: 700; width: 14px; }
+  .perm-name { font-size: 13px; color: var(--text-secondary); flex: 1; }
+  .perm-bit { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); background: var(--bg-tertiary); padding: 1px 5px; border-radius: 4px; border: 0.5px solid var(--border-light); }
+  .output-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 1rem; }
+  .stat-card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: .75rem 1rem; text-align: center; border: 0.5px solid var(--border-light); }
+  .stat-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .stat-value { font-family: var(--font-mono); font-size: 28px; font-weight: 600; color: var(--text-primary); }
+  .string-display { font-family: var(--font-mono); font-size: 22px; letter-spacing: .1em; padding: .75rem 1rem; background: var(--bg-secondary); border-radius: var(--radius-md); display: flex; align-items: center; gap: 3px; border: 0.5px solid var(--border-light); margin-bottom: .75rem; }
+  .sc { font-size: 22px; font-family: var(--font-mono); transition: color .2s; }
+  .sc.on-r { color: #3B6D11; } .sc.on-w { color: #185FA5; } .sc.on-x { color: #A32D2D; }
+  .sc.off { color: var(--text-tertiary); } .sc.file-type { color: var(--text-secondary); }
+  .sc-sep { color: var(--border-med); margin: 0 3px; }
+  .cmd-box { background: #1a1a2e; border-radius: var(--radius-md); padding: .75rem 1rem; font-family: var(--font-mono); font-size: 14px; color: #e2e8f0; position: relative; border: 0.5px solid #334155; margin-bottom: .5rem; }
+  .cmd-prompt { color: #4ade80; margin-right: 6px; } .cmd-text { color: #93c5fd; }
+  .copy-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: 0.5px solid #475569; color: #94a3b8; padding: 3px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: var(--font-sans); transition: all .15s; }
+  .copy-btn:hover { background: #1e293b; color: #e2e8f0; }
+  .ft-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ft-btn { font-family: var(--font-mono); font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; border: 0.5px solid var(--border-light); background: var(--bg-secondary); color: var(--text-secondary); transition: all .15s; }
+  .ft-btn.active { background: var(--bg-info); color: var(--text-info); border-color: var(--border-info); }
+  .num-input { font-family: var(--font-mono); font-size: 28px; width: 80px; text-align: center; padding: 6px; border: 0.5px solid var(--border-med); border-radius: var(--radius-md); background: var(--bg-primary); color: var(--text-primary); }
+  .scenarios { display: flex; flex-direction: column; gap: 6px; }
+  .scenario { padding: 9px 12px; border: 0.5px solid var(--border-light); border-radius: var(--radius-md); cursor: pointer; transition: all .15s; display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); }
+  .scenario:hover { border-color: var(--border-med); background: var(--bg-primary); }
+  .scenario-name { font-size: 13px; font-weight: 600; } .scenario-num { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--text-info); }
+  .scenario-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .ref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+  .ref-item { background: var(--bg-secondary); border-radius: var(--radius-md); padding: .6rem .75rem; border: 0.5px solid var(--border-light); }
+  .ref-num { font-family: var(--font-mono); font-size: 22px; font-weight: 700; } .ref-str { font-family: var(--font-mono); font-size: 14px; color: var(--text-secondary); margin: .1rem 0; } .ref-meaning { font-size: 11px; color: var(--text-tertiary); }
+  .warning { background: #FAECE7; border-left: 3px solid #D85A30; padding: .5rem .75rem; border-radius: 0 var(--radius-md) var(--radius-md) 0; font-size: 12px; color: #4A1B0C; margin-top: .5rem; }
+  .info-note { background: #E6F1FB; border-left: 3px solid #378ADD; padding: .5rem .75rem; border-radius: 0 var(--radius-md) var(--radius-md) 0; font-size: 12px; color: #042C53; margin-top: .5rem; }
+  .panel { display: none; } .panel.active { display: block; }
+  .mono-table { font-family: var(--font-mono); font-size: 13px; background: var(--bg-secondary); border-radius: var(--radius-md); padding: .5rem .75rem; border: 0.5px solid var(--border-light); line-height: 1.9; }
+  .lk-breakdown { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .lk-card { border-radius: var(--radius-md); padding: .6rem .75rem; border: 0.5px solid var(--border-light); }
+  .ref-explainer { font-size: 13px; color: var(--text-secondary); line-height: 1.8; margin-bottom: 1rem; }
+  code { font-family: var(--font-mono); font-size: 13px; background: var(--bg-secondary); padding: 1px 5px; border-radius: 4px; }
+  .three-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: .75rem; }
+  @media (max-width: 500px) { .perm-grid { grid-template-columns: 1fr; } .three-cols { grid-template-columns: 1fr; } .lk-breakdown { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1><i class="ti ti-lock" aria-hidden="true"></i> HEXSHIELD Linux permission simulator <span class="badge">interactive</span></h1>
+  <p>Toggle bits, decode numbers, explore common scenarios, and copy chmod commands instantly.</p>
+</div>
+
+<div class="container">
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" onclick="switchTab('builder')" role="tab">permission builder</button>
+    <button class="tab" onclick="switchTab('lookup')" role="tab">number lookup</button>
+    <button class="tab" onclick="switchTab('scenarios')" role="tab">common scenarios</button>
+    <button class="tab" onclick="switchTab('reference')" role="tab">quick reference</button>
+  </div>
+
+  <div id="panel-builder" class="panel active">
+    <div class="card">
+      <div class="section-title">select permissions</div>
+      <div class="perm-grid">
+        <div class="perm-group">
+          <div class="perm-group-label label-owner"><i class="ti ti-user" aria-hidden="true" style="font-size:13px;margin-right:4px"></i>owner (u)</div>
+          <div class="perm-row">
+            <label class="perm-check"><input type="checkbox" id="ur" onchange="update()"><span class="perm-letter" style="color:#3B6D11">r</span><span class="perm-name">read</span><span class="perm-bit">4</span></label>
+            <label class="perm-check"><input type="checkbox" id="uw" onchange="update()"><span class="perm-letter" style="color:#185FA5">w</span><span class="perm-name">write</span><span class="perm-bit">2</span></label>
+            <label class="perm-check"><input type="checkbox" id="ux" onchange="update()"><span class="perm-letter" style="color:#A32D2D">x</span><span class="perm-name">execute</span><span class="perm-bit">1</span></label>
+          </div>
+        </div>
+        <div class="perm-group">
+          <div class="perm-group-label label-group"><i class="ti ti-users" aria-hidden="true" style="font-size:13px;margin-right:4px"></i>group (g)</div>
+          <div class="perm-row">
+            <label class="perm-check"><input type="checkbox" id="gr" onchange="update()"><span class="perm-letter" style="color:#3B6D11">r</span><span class="perm-name">read</span><span class="perm-bit">4</span></label>
+            <label class="perm-check"><input type="checkbox" id="gw" onchange="update()"><span class="perm-letter" style="color:#185FA5">w</span><span class="perm-name">write</span><span class="perm-bit">2</span></label>
+            <label class="perm-check"><input type="checkbox" id="gx" onchange="update()"><span class="perm-letter" style="color:#A32D2D">x</span><span class="perm-name">execute</span><span class="perm-bit">1</span></label>
+          </div>
+        </div>
+        <div class="perm-group">
+          <div class="perm-group-label label-others"><i class="ti ti-world" aria-hidden="true" style="font-size:13px;margin-right:4px"></i>others (o)</div>
+          <div class="perm-row">
+            <label class="perm-check"><input type="checkbox" id="or" onchange="update()"><span class="perm-letter" style="color:#3B6D11">r</span><span class="perm-name">read</span><span class="perm-bit">4</span></label>
+            <label class="perm-check"><input type="checkbox" id="ow" onchange="update()"><span class="perm-letter" style="color:#185FA5">w</span><span class="perm-name">write</span><span class="perm-bit">2</span></label>
+            <label class="perm-check"><input type="checkbox" id="ox" onchange="update()"><span class="perm-letter" style="color:#A32D2D">x</span><span class="perm-name">execute</span><span class="perm-bit">1</span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">octal result</div>
+      <div class="output-row">
+        <div class="stat-card"><div class="stat-label">owner</div><div class="stat-value" id="out-u">0</div></div>
+        <div class="stat-card"><div class="stat-label">group</div><div class="stat-value" id="out-g">0</div></div>
+        <div class="stat-card"><div class="stat-label">others</div><div class="stat-value" id="out-o">0</div></div>
+      </div>
+      <div class="section-title">permission string (ls -l)</div>
+      <div class="string-display" id="perm-string" aria-live="polite">
+        <span class="sc file-type" id="ft-char">-</span>
+        <span class="sc off" id="s-ur">r</span><span class="sc off" id="s-uw">w</span><span class="sc off" id="s-ux">x</span>
+        <span class="sc-sep">│</span>
+        <span class="sc off" id="s-gr">r</span><span class="sc off" id="s-gw">w</span><span class="sc off" id="s-gx">x</span>
+        <span class="sc-sep">│</span>
+        <span class="sc off" id="s-or">r</span><span class="sc off" id="s-ow">w</span><span class="sc off" id="s-ox">x</span>
+      </div>
+      <div class="section-title">chmod — numeric</div>
+      <div class="cmd-box">
+        <span class="cmd-prompt">$</span>
+        <span class="cmd-text">chmod <span id="chmod-num">000</span> filename</span>
+        <button class="copy-btn" onclick="copyCmd('chmod-num','copy-btn1')" id="copy-btn1"><i class="ti ti-copy" aria-hidden="true"></i> copy</button>
+      </div>
+      <div class="section-title">chmod — symbolic</div>
+      <div class="cmd-box">
+        <span class="cmd-prompt">$</span>
+        <span class="cmd-text">chmod <span id="chmod-sym">a-rwx</span> filename</span>
+        <button class="copy-btn" onclick="copyCmd('chmod-sym','copy-btn2')" id="copy-btn2"><i class="ti ti-copy" aria-hidden="true"></i> copy</button>
+      </div>
+      <div id="danger-warn" class="warning" style="display:none">
+        <i class="ti ti-alert-triangle" aria-hidden="true"></i> <strong>world-writable</strong> — others can modify this file. Avoid this on shared or production systems.
+      </div>
+      <div id="exec-info" class="info-note" style="display:none">
+        <i class="ti ti-info-circle" aria-hidden="true"></i> execute bit is set. For shell scripts, ensure the first line is a shebang: <code>#!/bin/bash</code>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">file type prefix</div>
+      <div class="ft-row" id="ft-row">
+        <button class="ft-btn active" onclick="setFT('-')" data-ft="-">- regular file</button>
+        <button class="ft-btn" onclick="setFT('d')" data-ft="d">d directory</button>
+        <button class="ft-btn" onclick="setFT('l')" data-ft="l">l symlink</button>
+        <button class="ft-btn" onclick="setFT('c')" data-ft="c">c char device</button>
+        <button class="ft-btn" onclick="setFT('b')" data-ft="b">b block device</button>
+        <button class="ft-btn" onclick="setFT('s')" data-ft="s">s socket</button>
+        <button class="ft-btn" onclick="setFT('p')" data-ft="p">p named pipe</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-lookup" class="panel">
+    <div class="card">
+      <div class="section-title">enter an octal number (000 – 777)</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:1rem">
+        <input class="num-input" type="number" id="lookup-num" min="0" max="777" value="644" oninput="doLookup()" aria-label="octal permission number">
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6">Type any number from <code>000</code> to <code>777</code><br>to decode its permissions instantly.</div>
+      </div>
+      <div class="string-display" id="lookup-string" aria-live="polite">
+        <span class="sc file-type">-</span>
+        <span class="sc on-r">r</span><span class="sc on-w">w</span><span class="sc off">x</span>
+        <span class="sc-sep">│</span>
+        <span class="sc on-r">r</span><span class="sc off">w</span><span class="sc off">x</span>
+        <span class="sc-sep">│</span>
+        <span class="sc on-r">r</span><span class="sc off">w</span><span class="sc off">x</span>
+      </div>
+      <div class="lk-breakdown" id="lookup-breakdown" style="margin-bottom:.75rem"></div>
+      <div class="cmd-box">
+        <span class="cmd-prompt">$</span>
+        <span class="cmd-text">chmod <span id="lk-num-out">644</span> filename</span>
+        <button class="copy-btn" onclick="copyLookupCmd()" id="copy-btn-lk"><i class="ti ti-copy" aria-hidden="true"></i> copy</button>
+      </div>
+      <div id="lookup-warn" class="warning" style="display:none"></div>
+    </div>
+  </div>
+
+  <div id="panel-scenarios" class="panel">
+    <div class="card">
+      <div class="section-title">click any scenario to load it into the builder</div>
+      <div class="scenarios" id="scenario-list"></div>
+    </div>
+  </div>
+
+  <div id="panel-reference" class="panel">
+    <div class="card">
+      <div class="section-title">how the math works</div>
+      <div class="ref-explainer">
+        Each permission triplet <code>rwx</code> maps to a 3-bit binary number:
+        <code>r = 4</code> (100), <code>w = 2</code> (010), <code>x = 1</code> (001).
+        Add the values of enabled bits to get the octal digit.<br><br>
+        <code>rwx = 4+2+1 = 7</code> &nbsp;|&nbsp; <code>r-x = 4+0+1 = 5</code> &nbsp;|&nbsp; <code>rw- = 4+2+0 = 6</code> &nbsp;|&nbsp; <code>--- = 0</code><br>
+        Three triplets give three digits: <code>chmod 755</code> means owner=7, group=5, others=5.
+      </div>
+      <div class="three-cols">
+        <div class="mono-table">
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;font-family:var(--font-sans)">binary → octal</div>
+          <div>000 → 0</div><div>001 → 1</div><div>010 → 2</div><div>011 → 3</div>
+          <div>100 → 4</div><div>101 → 5</div><div>110 → 6</div><div>111 → 7</div>
+        </div>
+        <div class="mono-table">
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;font-family:var(--font-sans)">common permissions</div>
+          <div>644 → rw-r--r--</div><div>755 → rwxr-xr-x</div><div>600 → rw-------</div>
+          <div>700 → rwx------</div><div>664 → rw-rw-r--</div><div>777 → rwxrwxrwx</div>
+          <div>400 → r--------</div><div>000 → ---------</div>
+        </div>
+        <div class="mono-table">
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;font-family:var(--font-sans)">symbolic flags</div>
+          <div>u = owner</div><div>g = group</div><div>o = others</div><div>a = all</div>
+          <div>+ add perm</div><div>- remove perm</div><div>= set exact</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">all 8 octal digit values</div>
+      <div class="ref-grid" id="ref-grid"></div>
+    </div>
+    <div class="card">
+      <div class="section-title">useful chmod commands</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="cmd-box" style="position:static"><span class="cmd-prompt">$</span><span class="cmd-text">chmod 755 script.sh &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# make executable</span></div>
+        <div class="cmd-box" style="position:static"><span class="cmd-prompt">$</span><span class="cmd-text">chmod 600 ~/.ssh/id_rsa &nbsp;&nbsp;# private key</span></div>
+        <div class="cmd-box" style="position:static"><span class="cmd-prompt">$</span><span class="cmd-text">chmod -R 755 /var/www/ &nbsp;&nbsp;&nbsp;# recursive</span></div>
+        <div class="cmd-box" style="position:static"><span class="cmd-prompt">$</span><span class="cmd-text">chmod a+r README.md &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# symbolic — add read for all</span></div>
+        <div class="cmd-box" style="position:static"><span class="cmd-prompt">$</span><span class="cmd-text">chmod go-w config.conf &nbsp;&nbsp;&nbsp;# remove write from group+others</span></div>
+        <div class="cmd-box" style="position:static"><span class="cmd-prompt">$</span><span class="cmd-text">ls -l filename &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# view current permissions</span></div>
+        <div class="cmd-box" style="position:static"><span class="cmd-prompt">$</span><span class="cmd-text">stat filename &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# detailed permission info</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let currentFT = '-';
+const scenarios = [
+  {name:'644 — standard file',num:'644',desc:'owner reads & writes; group and others read only. Default for most files.'},
+  {name:'755 — script / directory',num:'755',desc:'owner full access; group and others read & execute. Common for scripts and directories.'},
+  {name:'600 — private file',num:'600',desc:'owner reads & writes only. No access for anyone else. Good for config files.'},
+  {name:'700 — private directory',num:'700',desc:'owner full access. Group and others cannot even list the directory.'},
+  {name:'664 — group-writable file',num:'664',desc:'owner and group read & write; others read only. Good for shared project files.'},
+  {name:'775 — group-writable dir',num:'775',desc:'owner and group full access; others read & execute. Team directories.'},
+  {name:'400 — read-only (sensitive)',num:'400',desc:'only owner can read. Required for SSH private keys (chmod 400 id_rsa).'},
+  {name:'444 — read-only all',num:'444',desc:'everyone can read, nobody can write. Shared config reference files.'},
+  {name:'777 — fully open',num:'777',desc:'everyone reads, writes, and executes. Avoid on shared or production systems.'},
+  {name:'000 — locked out',num:'000',desc:'no permissions for anyone. Even owner cannot read without sudo.'},
+];
+
+function buildScenarios() {
+  document.getElementById('scenario-list').innerHTML = scenarios.map(s =>
+    `<div class="scenario" onclick="loadScenario('${s.num}')" tabindex="0" role="button">
+      <div><div class="scenario-name">${s.name}</div><div class="scenario-desc">${s.desc}</div></div>
+      <div class="scenario-num">${s.num}</div>
+    </div>`).join('');
+}
+
+function buildRef() {
+  document.getElementById('ref-grid').innerHTML = [0,1,2,3,4,5,6,7].map(n => {
+    const str = (n&4?'r':'-')+(n&2?'w':'-')+(n&1?'x':'-');
+    const meaning = [n&4?'read':'',n&2?'write':'',n&1?'execute':''].filter(Boolean).join(', ')||'no access';
+    return `<div class="ref-item"><div class="ref-num">${n}</div><div class="ref-str">${str}</div><div class="ref-meaning">${meaning}</div></div>`;
+  }).join('');
+}
+
+function loadScenario(num) {
+  const d = num.padStart(3,'0').split('').map(Number);
+  ['ur','uw','ux','gr','gw','gx','or','ow','ox'].forEach((id,i) => {
+    const bits = [d[0]&4,d[0]&2,d[0]&1,d[1]&4,d[1]&2,d[1]&1,d[2]&4,d[2]&2,d[2]&1];
+    document.getElementById(id).checked = !!bits[i];
+  });
+  switchTab('builder'); update();
+}
+
+function setFT(ft) {
+  currentFT = ft;
+  document.getElementById('ft-char').textContent = ft;
+  document.querySelectorAll('.ft-btn').forEach(b => b.classList.toggle('active', b.dataset.ft === ft));
+}
+
+function update() {
+  const get = id => document.getElementById(id).checked;
+  const u = (get('ur')?4:0)+(get('uw')?2:0)+(get('ux')?1:0);
+  const g = (get('gr')?4:0)+(get('gw')?2:0)+(get('gx')?1:0);
+  const o = (get('or')?4:0)+(get('ow')?2:0)+(get('ox')?1:0);
+  document.getElementById('out-u').textContent = u;
+  document.getElementById('out-g').textContent = g;
+  document.getElementById('out-o').textContent = o;
+  [['ur','on-r'],['uw','on-w'],['ux','on-x'],['gr','on-r'],['gw','on-w'],['gx','on-x'],['or','on-r'],['ow','on-w'],['ox','on-x']]
+    .forEach(([id,cls]) => { document.getElementById('s-'+id).className = 'sc '+(get(id)?cls:'off'); });
+  document.getElementById('chmod-num').textContent = `${u}${g}${o}`;
+  document.getElementById('chmod-sym').textContent = buildSym(get);
+  document.getElementById('danger-warn').style.display = (o&2)?'block':'none';
+  document.getElementById('exec-info').style.display = (get('ux')||get('gx')||get('ox'))?'block':'none';
+}
+
+function buildSym(get) {
+  const uS=(get('ur')?'r':'')+(get('uw')?'w':'')+(get('ux')?'x':'');
+  const gS=(get('gr')?'r':'')+(get('gw')?'w':'')+(get('gx')?'x':'');
+  const oS=(get('or')?'r':'')+(get('ow')?'w':'')+(get('ox')?'x':'');
+  if(uS===gS&&gS===oS) return uS?'a='+uS:'a-rwx';
+  return [(uS?'u='+uS:'u-rwx'),(gS?'g='+gS:'g-rwx'),(oS?'o='+oS:'o-rwx')].join(',');
+}
+
+function doLookup() {
+  let val = parseInt(document.getElementById('lookup-num').value)||0;
+  val = Math.min(777,Math.max(0,val));
+  const s = val.toString().padStart(3,'0');
+  const d = s.split('').map(Number);
+  const warn = document.getElementById('lookup-warn');
+  if(d.some(n=>n>7)){warn.style.display='block';warn.textContent='Invalid octal — digits must be 0–7.';return;}
+  warn.style.display='none';
+  const bits = d.map(n=>[(n&4)?'r':'-',(n&2)?'w':'-',(n&1)?'x':'-']);
+  const clsMap=['on-r','on-w','on-x'];
+  document.getElementById('lookup-string').innerHTML =
+    `<span class="sc file-type">-</span>`+
+    bits.map(b=>b.map((c,i)=>`<span class="sc ${c!=='-'?clsMap[i]:'off'}">${c}</span>`).join('')).join('<span class="sc-sep">│</span>');
+  document.getElementById('lk-num-out').textContent = s;
+  const names=['owner (u)','group (g)','others (o)'],fills=['#EAF3DE','#E6F1FB','#FAEEDA'],tcols=['#27500A','#0C447C','#633806'];
+  document.getElementById('lookup-breakdown').innerHTML = d.map((n,i)=>{
+    const m=[n&4?'read':'',n&2?'write':'',n&1?'execute':''].filter(Boolean).join(' + ')||'no access';
+    return `<div class="lk-card" style="background:${fills[i]};color:${tcols[i]}">
+      <div style="font-size:11px;font-weight:600;margin-bottom:4px">${names[i]}</div>
+      <div style="font-family:var(--font-mono);font-size:24px;font-weight:700">${n}</div>
+      <div style="font-family:var(--font-mono);font-size:15px;margin:.1rem 0">${bits[i].join('')}</div>
+      <div style="font-size:11px">${m}</div></div>`;
+  }).join('');
+  if(d[2]&2){warn.style.display='block';warn.textContent='World-writable: others can modify files with this permission. Use with caution.';}
+}
+
+function copyCmd(spanId, btnId) {
+  const val = document.getElementById(spanId).textContent;
+  navigator.clipboard.writeText(`chmod ${val} filename`).then(()=>{
+    const b = document.getElementById(btnId);
+    b.innerHTML='<i class="ti ti-check"></i> done';
+    setTimeout(()=>b.innerHTML='<i class="ti ti-copy"></i> copy',1600);
+  });
+}
+
+function copyLookupCmd() {
+  const num = document.getElementById('lk-num-out').textContent;
+  navigator.clipboard.writeText(`chmod ${num} filename`).then(()=>{
+    const b = document.getElementById('copy-btn-lk');
+    b.innerHTML='<i class="ti ti-check"></i> done';
+    setTimeout(()=>b.innerHTML='<i class="ti ti-copy"></i> copy',1600);
+  });
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  const idx={builder:0,lookup:1,scenarios:2,reference:3};
+  document.querySelectorAll('.tab')[idx[name]].classList.add('active');
+}
+
+buildRef(); buildScenarios(); update(); doLookup();
+</script>
+</body>
+</html>
